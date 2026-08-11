@@ -1,8 +1,8 @@
 # Reconciling ESG Scores with Attention-based Graph Neural Networks
 
 Research Project for PSEG Undergraduate Scholars Program 2026
-Mentee: Owen Eriksson, Stevens Institute of Technology
-Mentor: Arion Cheong, Stevens Institute of Technology
+- Mentee: Owen Eriksson, Stevens Institute of Technology
+- Mentor: Arion Cheong, Stevens Institute of Technology
 
 This is an interactive web dashboard for exploring reconciled ESG scores across three rating providers (Refinitiv, MSCI, Bloomberg), with New Jersey as its focus. Each firm-year's unified score is the mean of our model's predicted Refinitiv, MSCI, and Bloomberg scores. 
 
