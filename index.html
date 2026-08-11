@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ESG Ratings Dashboard</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+  :root{
+    --ink:#1a1a1a; --muted:#6b7280; --surface:#fff; --panel:#f8fafc; --border:#e5e7eb;
+    --accent:#0f4c81; --ref:#0072B2; --msci:#E69F00; --bbg:#009E73; --uni:#333;
+    --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.06);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink);background:var(--panel);font-size:14px;line-height:1.45}
+  header{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 20px;
+    display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px;position:sticky;top:0;z-index:1000;box-shadow:var(--shadow)}
+  header h1{font-size:17px;margin:0;font-weight:700;min-width:0}
+  @media(max-width:720px){header{grid-template-columns:1fr}.searchwrap{justify-self:center}}
+  header h1 span{color:var(--muted);font-weight:400;font-size:13px}
+  .searchwrap{position:relative;width:460px;max-width:100%}
+  #search{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;outline:none}
+  #search:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(15,76,129,.12)}
+  #results{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--surface);
+    border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow);max-height:360px;overflow:auto;display:none;z-index:1001}
+  #results div{padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--panel);display:flex;justify-content:space-between;gap:10px}
+  #results div:hover{background:var(--panel)}
+  #results .tk{color:var(--muted);font-variant-numeric:tabular-nums;font-size:12px;white-space:nowrap}
+  nav{display:flex;gap:4px}
+  nav button{background:none;border:none;padding:8px 14px;border-radius:7px;cursor:pointer;font-size:13px;font-weight:600;color:var(--muted)}
+  nav button.active{background:var(--accent);color:#fff}
+  main{max-width:1180px;margin:20px auto;padding:0 20px}
+  .view{display:none} .view.active{display:block}
+  .grid2{display:grid;grid-template-columns:340px 1fr;gap:20px}
+  @media(max-width:820px){.grid2{grid-template-columns:1fr}}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;box-shadow:var(--shadow)}
+  .card h2{margin:0 0 4px;font-size:18px} .card .sub{color:var(--muted);font-size:13px;margin-bottom:14px}
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;margin-top:6px}
+  .stat .k{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.03em}
+  .stat .v{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+  .pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;margin-right:5px}
+  .p-ref{background:rgba(0,114,178,.13);color:var(--ref)}
+  .p-msci{background:rgba(230,159,0,.16);color:#a06b00}
+  .p-bbg{background:rgba(0,158,115,.14);color:var(--bbg)}
+  .placeholder{color:var(--muted);text-align:center;padding:60px 20px}
+  #map{height:520px;border-radius:12px;border:1px solid var(--border);z-index:1}
+  .maprow{display:grid;grid-template-columns:1fr 360px;gap:20px;align-items:stretch}
+  @media(max-width:820px){.maprow{grid-template-columns:1fr}#map{height:360px}}
+  .infocard{display:flex;flex-direction:column;justify-content:space-between}
+  #homeBody{margin-top:20px}
+  .bodygrid{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:24px;align-items:start;margin-bottom:6px}
+  @media(max-width:900px){.bodygrid{grid-template-columns:1fr}}
+  .note{background:#fff8e6;border:1px solid #f0d98a;color:#7a5c00;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:14px}
+  .maplegend{background:#fff;padding:8px 11px;border-radius:8px;box-shadow:var(--shadow);font-size:12px;line-height:1.7;color:var(--ink)}
+  .maplegend b{display:block;margin-bottom:4px;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}
+  .maplegend i{width:12px;height:12px;border-radius:50%;display:inline-block;margin-right:6px;vertical-align:-1px}
+  .secgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+  .seccard{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;box-shadow:var(--shadow);transition:transform .08s}
+  .seccard:hover{transform:translateY(-2px);border-color:var(--accent)}
+  .seccard .nm{font-weight:700;font-size:15px;margin-bottom:8px}
+  .seccard .mt{display:flex;justify-content:space-between;color:var(--muted);font-size:12px}
+  .seccard .big{font-size:26px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums}
+  .firmlist{max-height:520px;overflow:auto}
+  .firmlist div{padding:8px 10px;border-bottom:1px solid var(--panel);cursor:pointer;display:flex;justify-content:space-between;gap:10px}
+  .firmlist div:hover{background:var(--panel)}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin:8px 0 2px;font-size:12px}
+  .legend span{display:inline-flex;align-items:center;gap:5px;color:var(--muted)}
+  .legend i{width:14px;height:3px;border-radius:2px;display:inline-block}
+  .chartwrap{position:relative}
+  #tip{position:absolute;pointer-events:none;background:#1a1a1a;color:#fff;padding:7px 10px;border-radius:6px;font-size:12px;display:none;z-index:5;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .backlink{color:var(--accent);cursor:pointer;font-size:13px;font-weight:600;display:inline-block;margin-bottom:10px}
+  .muted{color:var(--muted)}
+  .bdyr{font-size:12px;color:var(--muted);margin-bottom:6px}
+  table.bd{width:100%;table-layout:fixed;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+  table.bd th,table.bd td{padding:6px 5px;text-align:right;border-bottom:1px solid var(--border);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  table.bd th:first-child,table.bd td:first-child{width:30%;text-align:left}
+  table.bd thead th{font-size:11px;color:var(--muted);font-weight:600}
+  table.bd tbody th{text-align:left;font-weight:600}
+  table.bd tbody tr:first-child{font-weight:700}
+  .catwrap{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px}
+  @media(max-width:560px){.catwrap{grid-template-columns:1fr}}
+  .cathd{font-size:12px;font-weight:700;margin-bottom:6px}
+  .catrow{display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px solid var(--panel);font-size:12.5px}
+  .catv{font-variant-numeric:tabular-nums;font-weight:600}
+</style>
+</head>
+<body>
+<header>
+  <h1>Reconciling ESG Scores with Attention-based Graph Neural Networks </h1>
+  <div class="searchwrap">
+    <input id="search" placeholder="Search a firm by name or ticker…" autocomplete="off"/>
+    <div id="results"></div>
+  </div>
+</header>
+<main>
+  <section id="v-home" class="view active">
+    <div id="mapNote" class="note"></div>
+    <div class="maprow">
+      <div id="map"></div>
+      <div id="homeDetail"><div class="card"><div class="placeholder">Click a firm on the map, or search above, to see its details.</div></div></div>
+    </div>
+    <div id="homeBody"></div>
+    <div style="margin-top:26px">
+      <h2 style="margin:0 0 4px">Industries — GICS sectors (Compustat)</h2>
+      <p class="muted" style="margin:0 0 16px">Average latest unified ESG score and firm count per GICS sector. Click a sector to list its firms.</p>
+      <div class="secgrid" id="secgrid"></div>
+    </div>
+  </section>
+
+  <section id="v-sector" class="view">
+    <span class="backlink" onclick="showHome()">← Back to map &amp; sectors</span>
+    <div class="grid2">
+      <div class="card"><h2 id="secTitle"></h2><div class="sub" id="secSub"></div><div class="firmlist" id="secFirms"></div></div>
+      <div id="indDetail"></div>
+    </div>
+  </section>
+</main>
+
+<script src="data.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const D = window.DASH, F = D.firms, S = D.series;
+const COL = {ref:'#0072B2', msci:'#E69F00', bbg:'#009E73', uni:'#333'};
+
+// ---------- helpers ----------
+const fmtMoney = v => v==null ? '—' : (Math.abs(v)>=1000 ? '$'+(v/1000).toFixed(1)+'B' : '$'+Math.round(v).toLocaleString()+'M');
+const fmtInt = v => v==null ? '—' : Math.round(v).toLocaleString();
+const fmtPct = v => v==null ? '—' : (v*100).toFixed(1)+'%';
+const fmtScore = v => v==null ? '—' : v.toFixed(1);
+
+// ---------- search ----------
+const idx = F.map(f => ({i:f.i, s:((f.n||'')+' '+(f.t||'')).toLowerCase(), n:f.n, t:f.t}));
+const searchBox = document.getElementById('search'), resBox = document.getElementById('results');
+searchBox.addEventListener('input', () => {
+  const q = searchBox.value.trim().toLowerCase();
+  if(q.length < 1){ resBox.style.display='none'; return; }
+  const hits = [];
+  for(const r of idx){ if(r.s.includes(q)){ hits.push(r); if(hits.length>=40) break; } }
+  resBox.innerHTML = hits.map(h=>`<div onclick="pick(${h.i})"><span>${esc(h.n)}</span><span class="tk">${esc(h.t||'')}</span></div>`).join('') || '<div class="muted" style="padding:10px 12px">No matches</div>';
+  resBox.style.display='block';
+});
+document.addEventListener('click', e=>{ if(!e.target.closest('.searchwrap')) resBox.style.display='none'; });
+function esc(s){ return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function pick(i){
+  resBox.style.display='none'; searchBox.value = F[i].n;
+  showHome();
+  document.getElementById('homeDetail').innerHTML = infoCardHome(F[i]);
+  document.getElementById('homeBody').innerHTML = bodyCardHome(F[i]);
+  drawChart('chart-'+i, S[i]);
+  document.getElementById('homeBody').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+// ---------- firm cards ----------
+function miniCard(f){
+  const provs = [['R','p-ref','Refinitiv'],['M','p-msci','MSCI'],['B','p-bbg','Bloomberg']]
+    .filter(p=>(f.p||'').includes(p[0])).map(p=>`<span class="pill ${p[1]}">${p[2]}</span>`).join('') || '<span class="muted">none</span>';
+  return `<h2>${esc(f.n)}</h2><div class="sub">${esc(f.t||'—')} · ${esc(f.secN||'Unclassified')}</div>
+    <div style="margin-bottom:12px">${provs}</div>
+    <div class="stats">
+      <div class="stat"><div class="k">Latest unified score</div><div class="v" style="color:var(--accent)">${fmtScore(f.u)}</div></div>
+      <div class="stat"><div class="k">HQ state</div><div class="v">${esc(f.st||'—')}</div></div>
+      <div class="stat"><div class="k">Country</div><div class="v">${esc(f.co||'—')}</div></div>
+      <div class="stat"><div class="k">ISIN</div><div class="v" style="font-size:12px">${esc(f.isin||'—')}</div></div>
+    </div>`;
+}
+function fundHTML(f){
+  const hasFund = f.rev!=null || f.ast!=null || f.mc!=null || f.emp!=null;
+  const fundBody = hasFund ? `
+    <div class="stats" style="grid-template-columns:repeat(3,1fr);margin:10px 0 2px">
+      <div class="stat"><div class="k">Revenue</div><div class="v">${fmtMoney(f.rev)}</div></div>
+      <div class="stat"><div class="k">Total assets</div><div class="v">${fmtMoney(f.ast)}</div></div>
+      <div class="stat"><div class="k">Market cap</div><div class="v">${fmtMoney(f.mc)}</div></div>
+      <div class="stat"><div class="k">Employees</div><div class="v">${fmtInt(f.emp)}</div></div>
+      <div class="stat"><div class="k">ROA</div><div class="v">${fmtPct(f.roa)}</div></div>
+      <div class="stat"><div class="k">GICS sector</div><div class="v" style="font-size:13px">${esc(f.secN||'—')}</div></div>
+    </div>`
+    : `<p class="muted" style="margin:8px 0 2px">No Compustat fundamentals matched for this entity${f.secN?` (GICS sector: ${esc(f.secN)})`:''}.</p>`;
+  return `<h2 style="font-size:15px;margin-top:14px">Fundamentals <span class="muted" style="font-size:12px;font-weight:400">(Compustat${hasFund?`, FY ${f.fy||'—'}, USD`:''})</span></h2>${fundBody}`;
+}
+function chartHTML(f){
+  return `<h2 style="font-size:16px;margin-top:0">ESG Score History</h2>
+    <div class="legend">
+      <span><i style="background:${COL.ref}"></i>Refinitiv</span>
+      <span><i style="background:${COL.msci}"></i>MSCI</span>
+      <span><i style="background:${COL.bbg}"></i>Bloomberg</span>
+      <span><i style="background:${COL.uni};height:4px"></i>Unified</span>
+    </div>
+    <div class="chartwrap"><svg id="chart-${f.i}" width="100%" height="300"></svg><div id="tip"></div></div>`;
+}
+function breakdownHTML(f){
+  return `<h2 style="font-size:16px;margin-top:0">Score breakdown by pillar</h2><div id="bd-${f.i}"></div>`;
+}
+// home page: compact identity + fundamentals card (top-right, matches map height)
+function infoCardHome(f){ return `<div class="card infocard"><div>${miniCard(f)}</div><div>${fundHTML(f)}</div></div>`; }
+// home page: wide horizontal body (chart | breakdown side by side, then categories)
+function bodyCardHome(f){
+  return `<div class="card"><div class="bodygrid"><div>${chartHTML(f)}</div><div>${breakdownHTML(f)}</div></div><div id="cat-${f.i}"></div></div>`;
+}
+// sector-drill view: everything stacked in one card
+function detailCard(f){
+  return `<div class="card">${fundHTML(f)}${chartHTML(f)}${breakdownHTML(f)}<div id="cat-${f.i}"></div></div>`;
+}
+
+// ---------- SVG line chart ----------
+function drawChart(svgId, data){
+  const svg = document.getElementById(svgId); if(!svg||!data) return;
+  const W = svg.clientWidth||640, H = 300, m={t:14,r:16,b:28,l:34};
+  const iw = W-m.l-m.r, ih = H-m.t-m.b;
+  const years = data.map(d=>d[0]), y0=Math.min(...years), y1=Math.max(...years);
+  const xs = yr => m.l + (y1===y0?iw/2:(yr-y0)/(y1-y0)*iw);
+  const ys = v => m.t + (1-v/100)*ih;
+  let g = '';
+  // gridlines + y labels
+  for(let v=0; v<=100; v+=25){ const y=ys(v);
+    g += `<line x1="${m.l}" y1="${y}" x2="${W-m.r}" y2="${y}" stroke="#eef1f4"/><text x="${m.l-6}" y="${y+3}" text-anchor="end" font-size="10" fill="#9aa3af">${v}</text>`; }
+  // x labels (sparse)
+  const step = Math.ceil((y1-y0)/6)||1;
+  for(let yr=y0; yr<=y1; yr+=step){ g += `<text x="${xs(yr)}" y="${H-8}" text-anchor="middle" font-size="10" fill="#9aa3af">${yr}</text>`; }
+  // series columns: 0=year, then overall for ref/msci/bbg/unified at 1/5/9/13
+  const specs = [[1,COL.ref,2,false],[5,COL.msci,2,false],[9,COL.bbg,2,false],[13,COL.uni,3,true]];
+  for(const [k,c,w,bold] of specs){
+    const pts = data.filter(d=>Number.isFinite(d[k])).map(d=>[xs(d[0]),ys(d[k])]);
+    if(pts.length>1) g += `<polyline points="${pts.map(p=>p.join(',')).join(' ')}" fill="none" stroke="${c}" stroke-width="${w}" ${bold?'':'opacity="0.9"'} stroke-linejoin="round"/>`;
+    if(!bold) for(const p of pts) g += `<circle cx="${p[0]}" cy="${p[1]}" r="3.5" fill="${c}"/>`;
+  }
+  // hover crosshair
+  g += `<line id="cross-${svgId}" y1="${m.t}" y2="${H-m.b}" stroke="#c4c9d0" stroke-dasharray="3 3" style="display:none"/>`;
+  g += `<rect x="${m.l}" y="${m.t}" width="${iw}" height="${ih}" fill="transparent" style="cursor:crosshair"/>`;
+  svg.innerHTML = g;
+  // default the breakdown table to the most-covered recent year
+  const fi = svgId.replace('chart-','');
+  const cover = yr => [1,5,9].filter(k=>Number.isFinite((data.find(d=>d[0]===yr)||[])[k])).length;
+  let bdYear = years[0]; for(const yr of years){ if(cover(yr) >= cover(bdYear)) bdYear = yr; }
+  updateBreakdown(fi, data, bdYear); updateCats(fi, bdYear);
+  const tip = document.getElementById('tip'), cross = document.getElementById('cross-'+svgId);
+  const rect = svg.querySelector('rect');
+  rect.addEventListener('mousemove', ev=>{
+    const bb = svg.getBoundingClientRect(), px = ev.clientX-bb.left;
+    const yr = Math.round(y0 + (px-m.l)/iw*(y1-y0));
+    const row = data.find(d=>d[0]===yr); if(!row) return;
+    cross.setAttribute('x1',xs(yr)); cross.setAttribute('x2',xs(yr)); cross.style.display='';
+    tip.style.display='block'; tip.style.left=Math.min(px+12,W-140)+'px'; tip.style.top='10px';
+    tip.innerHTML = `<b>${yr}</b><br>Refinitiv: ${fmtScore(row[1])}<br>MSCI: ${fmtScore(row[5])}<br>Bloomberg: ${fmtScore(row[9])}<br>Unified: ${fmtScore(row[13])}`;
+    updateBreakdown(fi, data, yr); updateCats(fi, yr);
+  });
+  rect.addEventListener('mouseleave', ()=>{ tip.style.display='none'; cross.style.display='none'; });
+}
+
+// ---------- pillar breakdown table (per selected year) ----------
+const BD_ROWS = [['Overall',1,5,9,13],['Environmental',2,6,10,14],['Social',3,7,11,15],['Governance',4,8,12,16]];
+function updateBreakdown(fi, data, yr){
+  const el = document.getElementById('bd-'+fi); if(!el) return;
+  const row = data.find(d=>d[0]===yr); if(!row) return;
+  const cell = v => `<td>${Number.isFinite(v)?v.toFixed(1):'<span class="muted">—</span>'}</td>`;
+  el.innerHTML = `<div class="bdyr">Year <b>${yr}</b> · scores 0–100</div>
+    <table class="bd"><thead><tr><th></th><th>Refinitiv</th><th>MSCI</th><th>Bloomberg</th></tr></thead>
+    <tbody>${BD_ROWS.map(r=>`<tr><th>${r[0]}</th>${cell(row[r[1]])}${cell(row[r[2]])}${cell(row[r[3]])}</tr>`).join('')}</tbody></table>`;
+}
+
+// ---------- provider category / theme detail (updates with the selected year) ----------
+function updateCats(fi, yr){
+  const el = document.getElementById('cat-'+fi); if(!el) return;
+  const c = (window.DASH.cats||{})[fi];
+  const M = window.DASH.meta;
+  if(!c){ el.innerHTML=''; return; }
+  const block = (title, labels, vals) => {
+    if(!vals) return `<div class="catcol"><div class="cathd">${title}</div><div class="catrow muted">Not rated in ${yr}</div></div>`;
+    const rows = labels.map((lb,j)=>{
+      const v = vals[j];
+      const disp = Number.isFinite(v) ? v.toFixed(1) : '<span class="muted">—</span>';
+      return `<div class="catrow"><span>${esc(lb)}</span><span class="catv">${disp}</span></div>`;
+    }).join('');
+    return `<div class="catcol"><div class="cathd">${title}</div>${rows}</div>`;
+  };
+  const rv = c.r ? c.r[yr] : null, mv = c.m ? c.m[yr] : null;
+  // Bloomberg has no categories — show its E/S/G pillar scores (from the score series) instead
+  const hasB = (((window.DASH.firms||[])[fi]||{}).p||'').includes('B');
+  const row = ((window.DASH.series||{})[fi]||[]).find(d=>d[0]==yr);
+  const bv = (row && [row[10],row[11],row[12]].some(Number.isFinite)) ? [row[10],row[11],row[12]] : null;
+  let blocks = '';
+  if(c.r) blocks += block('Refinitiv categories', M.refCatLabels, rv);
+  if(c.m) blocks += block('MSCI themes', M.msciThemeLabels, mv);
+  if(hasB) blocks += block('Bloomberg pillars', ['Environmental','Social','Governance'], bv);
+  if(!blocks){ el.innerHTML=''; return; }
+  el.innerHTML = `<h2 style="font-size:16px;margin-top:22px">Provider category detail <span class="muted" style="font-size:12px;font-weight:400">(${yr})</span></h2>
+    <div class="catwrap">${blocks}</div>`;
+}
+
+// ---------- views ----------
+function showHome(){
+  document.getElementById('v-home').classList.add('active');
+  document.getElementById('v-sector').classList.remove('active');
+  if(map) setTimeout(()=>map.invalidateSize(), 0);
+}
+function showSector(){
+  document.getElementById('v-home').classList.remove('active');
+  document.getElementById('v-sector').classList.add('active');
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+// ---------- NJ map ----------
+let map=null;
+function initMap(){
+  const note = document.getElementById('mapNote');
+  if(D.meta.hasCoords && D.meta.nNJgeocoded>0){
+    note.innerHTML = `<b>${D.meta.nNJgeocoded}</b> New Jersey firms geolocated by HQ city/ZIP. Click a marker for firm details.`;
+  } else {
+    note.innerHTML = `Showing New Jersey (<b>${D.meta.nNJ}</b> NJ-headquartered firms in the data). <b>Firm markers are pending the Compustat city/ZIP re-pull</b> — once that lands, re-run <code>build_dashboard.py</code> and pins will appear here.`;
+  }
+  if(map) return;
+  map = L.map('map').setView([40.1,-74.5], 8);
+  // CARTO's free basemap works from file:// (OpenStreetMap's tile server blocks
+  // requests without a Referer, which is why the OSM tiles showed "Access blocked").
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    {subdomains:'abcd', maxZoom:19, attribution:'© OpenStreetMap contributors © CARTO'}).addTo(map);
+  const nj = F.filter(f=>f.st==='NJ' && f.lat!=null && f.lng!=null);
+  // colour by RELATIVE standing (thirds) among NJ firms — the unified score's
+  // absolute scale isn't directly comparable across firms, so relative is honest.
+  const scored = nj.filter(f=>f.u!=null).map(f=>f.u).sort((a,b)=>a-b);
+  NJ_T1 = scored[Math.floor(0.34*(scored.length-1))];
+  NJ_T2 = scored[Math.floor(0.67*(scored.length-1))];
+  for(const f of nj){
+    L.circleMarker([f.lat,f.lng], {radius:7, weight:1.5, color:'#ffffff',
+      fillColor:scoreColor(f.u), fillOpacity:0.92})
+      .addTo(map)
+      .bindTooltip(`${esc(f.n)} · ${f.u!=null?f.u.toFixed(0):'—'}`, {direction:'top'})
+      .on('click',()=>{ document.getElementById('homeDetail').innerHTML = infoCardHome(f);
+        document.getElementById('homeBody').innerHTML = bodyCardHome(f);
+        drawChart('chart-'+f.i, S[f.i]); });
+  }
+  // color legend (unified ESG score)
+  const lg = L.control({position:'bottomright'});
+  lg.onAdd = function(){
+    const d = L.DomUtil.create('div','maplegend');
+    d.innerHTML = '<b>Unified ESG score (relative)</b>' +
+      [['#1F7A3D','Upper third'],['#E0A93B','Middle third'],['#C0504D','Lower third']]
+      .map(r=>`<div><i style="background:${r[0]}"></i>${r[1]}</div>`).join('') +
+      '<div style="color:var(--muted);font-size:10px;margin-top:3px">among NJ firms</div>';
+    return d;
+  };
+  lg.addTo(map);
+}
+let NJ_T1 = 45, NJ_T2 = 60;
+function scoreColor(u){
+  if(u==null) return '#9aa3af';
+  if(u>=NJ_T2) return '#1F7A3D';
+  if(u>=NJ_T1) return '#E0A93B';
+  return '#C0504D';
+}
+
+// ---------- industries ----------
+function renderSectors(){
+  document.getElementById('secgrid').innerHTML = D.sectors.map(s=>`
+    <div class="seccard" onclick="drillSector('${s.code}')">
+      <div class="nm">${esc(s.name)}</div>
+      <div class="big">${s.avgUnified==null?'—':s.avgUnified.toFixed(1)}</div>
+      <div class="mt"><span>avg unified score</span><span>${s.nFirms.toLocaleString()} firms</span></div>
+    </div>`).join('');
+}
+function drillSector(code){
+  const sec = D.sectors.find(s=>s.code===code);
+  const firms = F.filter(f=>f.sec===code).sort((a,b)=>(b.u??-1)-(a.u??-1));
+  showSector();
+  document.getElementById('secTitle').textContent = sec.name;
+  document.getElementById('secSub').textContent = `${firms.length.toLocaleString()} firms · avg unified score ${sec.avgUnified??'—'} · sorted by unified score`;
+  document.getElementById('secFirms').innerHTML = firms.slice(0,400).map(f=>
+    `<div onclick="pickInd(${f.i})"><span>${esc(f.n)}</span><span class="tk">${esc(f.t||'')} · ${fmtScore(f.u)}</span></div>`).join('');
+  document.getElementById('indDetail').innerHTML = '<div class="card"><div class="placeholder">Select a firm from the list.</div></div>';
+}
+function pickInd(i){
+  document.getElementById('indDetail').innerHTML = '<div class="card">'+miniCard(F[i])+'</div>'+detailCard(F[i]);
+  drawChart('chart-'+F[i].i, S[i]);
+}
+
+// ---------- init (combined home page) ----------
+initMap();
+renderSectors();
+</script>
+</body>
+</html>
