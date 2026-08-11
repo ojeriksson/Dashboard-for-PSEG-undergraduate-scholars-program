@@ -11,3 +11,5 @@ What it shows:
 - Firm search bar for searching any of the 39,121 firms by name or ticker; opens a dedicated firm page.
 - Firm details including providers, our Graph Neural Network model's unified ESG score, HQ state, ISIN, Compustat fundamentals, an ESG score history chart (each provider's overall score plus the unified line), a pillar breakdown table (Overall / Environmental / Social / Governance for each provider and the unified score), and provider category detail (Refinitiv's 10 categories, MSCI's 10 themes and Bloomberg's pillar scores). Hovering the chart drives the breakdown and category detail to any available year with data.
 - Industry explorer with average unified score and firm count per GICS sector; click a sector to list its firms.
+
+Link to webpage: https://ojeriksson.github.io/Dashboard-for-PSEG-undergraduate-scholars-program/
