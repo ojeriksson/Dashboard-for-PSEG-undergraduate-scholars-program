@@ -1,1 +1,1 @@
-# Dashboard-for-PSEG-undergraduate-scholars-program
+# PSEG Research Dashboard
